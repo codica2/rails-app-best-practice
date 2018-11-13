@@ -15,7 +15,6 @@ project_name
     |   ├── controllers => app controllers
     |   ├── decorators => app decorators
     |   ├── helpers => app helpers
-    |   ├── javascript => Contains js code if you are using webpacker gem
     |   ├── mailers => app mailers
     |   ├── models => app models
     |   ├── services 
@@ -179,16 +178,38 @@ module Page
     ::Filter::ParamsProcessor.call(params: params, query_parameter: :listing, currency: currency)
   end
 
-    end
+end
 ```
 [Examples](app/services)
 
 ## Presenters
-Presenters give you an object oriented way to approach view helpers
+Presenters give you an object oriented way to approach view helpers.
 
 ```ruby
+ class DividendYearDispatcher
 
+   def initialize(dividend_year:, default_presenter: YearlyDistributionPresenter)
+      @dividend_year = dividend_year
+      @default_presenter = default_presenter
+    end
+
+    def results
+      presenter.dividends_year
+    end
+
+    def presenter
+      presenter_class(@dividend_year.distribution).new(@dividend_year)
+    end
+
+    def presenter_class(distribution)
+      ('DividendYear::' + "#{distribution.gsub(/[ +]/,'_')}_distribution_presenter".camelize).safe_constantize || @default_presenter
+    end
+  end
 ```
+
+[Examples](app/presenters)
+[Documentation](http://nithinbekal.com/posts/rails-presenters/)
+
 ## Workers
 At codica we use sidekiq as a full-featured background processing framework for Ruby. It aims to be simple to integrate with any modern Rails application and much higher performance than other existing solutions.
 
