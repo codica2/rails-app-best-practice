@@ -1,37 +1,35 @@
 # Rails Structure Sample
 
-![Rails Structure](https://images.onlinelabels.com/images/clip-art/GDJ/Tree%20And%20Leaves%20Silhouette-254171.png)
+![Rails Structure](https://www.iconsdb.com/icons/preview/icon-sets/web-2-ruby-red/tree-80-xxl.png)
 
 ## Description
-
-
-
+Ruby on Rails is one of our favourite frameworks for web applications development. We love it because of agile and interesting development process, high performance and, of course, ruby programming language.
+Below you can find an example of a project`s structure, and its main components
 ## File structure
 
 ``` 
 project_name
     ├── app
     |   ├── assets  => images, fonts, stylesheets, js
-    |   ├── controllers => app controllers
-    |   ├── decorators => app decorators
-    |   ├── helpers => app helpers
-    |   ├── mailers => app mailers
-    |   ├── models => app models
+    |   ├── controllers 
+    |   ├── decorators 
+    |   ├── helpers 
+    |   ├── mailers
+    |   ├── models 
+    |   ├── performers
     |   ├── services 
     |   ├── uploaders 
     |   ├── presenters 
-    |   ├── views => Contains app views.
+    |   ├── views 
     |   └── workers => workers for running processes in the background
-    ├── bin =>  contains script that starts, update, deploy or run your application.
+    ├── bin     =>  contains script that starts, update, deploy or run your application.
     ├── config  => configure your application's routes, database, and more
-    ├── db => contains your current database schema and migrations
-    ├── lib => extended modules for your application
-    ├── log => app log files
-    ├── node_modules 
-    ├── public => The only folder seen by the world as-is. Contains static files and compiled assets.
-    ├── scripts
-    ├── spec => Unit tests, features, and other test apparatus.
-    ├── tmp => Temporary files (like cache and pid files).
+    ├── db      => contains your current database schema and migrations
+    ├── lib     => extended modules for your application
+    ├── log     => app log files
+    ├── public  => The only folder seen by the world as-is. Contains static files and compiled assets.
+    ├── spec    => Unit tests, features, and other test apparatus.
+    ├── tmp     => Temporary files (like cache and pid files).
     └── vendor  => third-party code
 ```
 ## Controllers
@@ -83,21 +81,23 @@ end
 Helpers in Rails are used to extract complex logic out of the view so that you can organize your code better.
 
 ```ruby
-module LeadsHelper
-  
-  def difference_mark(num)
-    return "+ #{num}" if num.positive?
+module PartnersHelper
+
+  def partner_activation(partner)
+    partner.active? ? t('partners.extend_activation') : t('partners.activation')
   end
   
-  def chart_periods
-    [['7 days', 7], ['14 days', 14], ['1 month', 30], ['6 month', 180]]
+
+  def partner_info?(partner)
+    partner.address.present? || partner.website.present?
   end
-  
-  def statistic_period
-    [['7 days', 7.days.ago], ['14 days', 14.days.ago], ['1 month', 30.days.ago], ['6 month', 180.days.ago]]
+
+  def partner_edit_page_title(redirect_url)
+    redirect_url.present? ? I18n.t('partners.upgrade_my_profile') : I18n.t('partners.edit_my_profile')
   end
 
 end
+
 
 ```
 
@@ -150,35 +150,83 @@ end
 
 [Documentation](https://guides.rubyonrails.org/active_model_basics.html)
 
+## Performers
+
+The performer pattern creates seperation for the methods in your model that are view related. The performers are modules and are included into the corresponding model. 
+
+```ruby
+module InvestmentDataPerformer
+  
+  def self.included(base)
+    base.extend ClassMethods
+  end
+
+  module ClassMethods
+
+  end
+  
+  def total_distribution
+    investment.rental_properties? ? total_quarterly_distribution : total_distribution_dev
+  end
+  
+  def profit_less_reserves_for_distribution
+    return unless investment.profit_less_reserves_for_distribution
+
+    investment.profit_less_reserves_for_distribution * holding / 100
+  end
+
+  def non_final_profit
+    return nil unless investment.non_final_profit
+
+    investment.non_final_profit * holding / 100
+  end
+
+  def final_distribution
+    return unless investment.distribution.present?
+    investment.distribution * holding / 100
+  end
+
+end
+
+```
+
+[Examples](app/performers)
+
+[Documentation](https://github.com/jwipeout/performer-pattern)
+
+
 ## Services
 Service Object can be a class or module in Ruby that performs an action. It can help take out logic from other areas of the MVC files.
 
 ```ruby
-module Page
+class CalculateCurrency < BaseService
 
-  attr_reader :partner, :currency, :params
+  attr_reader :price, :currency, :rewert
 
   def initialize(options = {})
-    @partner  = options[:partner]
-    @params   = options[:params]   || {}
-    @currency = options[:currency] || 'USD'
+    @price = options[:price].to_i
+    @currency = options[:currency]
+    @rewert = options[:rewert] || nil
   end
 
-  def listings
-    ::Filter::Listings.call(filtering_params: filtering_params,
-                            ads: partner.vehicle_listings.validated,
-                            page: params[:page])
+  def call
+    rate = get_rate(ExchangeRate.base_currency, Settings.currencies[currency])
+    money = rate.present? ? get_price(rate) : price
+    { currency: currency, price: money }
   end
 
-  def price_range
-    ::Calculate::PriceRange.call(VehicleListing.prices, currency)
+  private
+
+  def get_price(rate)
+    rewert.present? ? (price / rate).floor : (rate * price).floor
   end
 
-  def filtering_params
-    ::Filter::ParamsProcessor.call(params: params, query_parameter: :listing, currency: currency)
+  def get_rate(from, to)
+    Money.default_bank.get_rate(from, to)
   end
 
 end
+
 ```
 [Examples](app/services)
 
@@ -208,6 +256,7 @@ Presenters give you an object oriented way to approach view helpers.
 ```
 
 [Examples](app/presenters)
+
 [Documentation](http://nithinbekal.com/posts/rails-presenters/)
 
 ## Workers
@@ -231,8 +280,6 @@ end
 [Examples](app/workers)
 
 [Documentation](https://github.com/mperham/sidekiq/wiki)
-## Node Modules
-
 
 ## Spec
 Spec folder include the test suites, the application logic tests.

@@ -4,13 +4,6 @@ module PartnersHelper
     partner.active? ? t('partners.extend_activation') : t('partners.activation')
   end
 
-  def partner_company_types
-    Partner.company_types.keys.map { |type| [I18n.t("partners.#{type}"), type] }
-  end
-
-  def partner_filter_active?(type, type_from_params)
-    VehicleListing.car_types[type] == type_from_params || (type_from_params.blank? && type == VehicleListing.car_types.first.to_sym)
-  end
 
   def partner_info?(partner)
     partner.address.present? || partner.website.present?

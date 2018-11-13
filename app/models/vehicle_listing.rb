@@ -43,6 +43,7 @@
 class VehicleListing < Listing
 
   # == Constants ============================================================
+
   # == Attributes ===========================================================
   attr_accessor :brand_id
 
@@ -104,9 +105,6 @@ class VehicleListing < Listing
 
   # == Callbacks ============================================================
   has_secure_token :token
-
-  # TODO: Remove :clear_unused_moto_fields after refactor create/edit ad forms
-  before_save :clear_unused_moto_fields
 
   # == Class Methods ========================================================
   def self.prices
