@@ -264,8 +264,94 @@ end
 
 [Documentation](http://nithinbekal.com/posts/rails-presenters/)
 
+## Facades
+
+Facades provide a unified interface to a set of interfaces in a subsystem. Facade defines a higher-level interface that makes the subsystem easier to use.
+One of the responsibilities that is being thrown at the controller is to prepare the data so it can be presented to user. To remove the responsibility of preparing the data for the view we're using Facade pattern.
+
+```ruby
+class Admin
+
+  class DocumentsFacade
+
+    attr_reader :loan, :investor
+
+    def initialize(loan_id, investor_id)
+      @loan = Loan.find(loan_id)
+      @investor = Investor.find(investor_id) if investor_id.present?
+    end
+
+    def lender?
+      @investor.present?
+    end
+
+    def new_document
+      @loan.documents.build(investor_id: @investor.id)
+    end
+
+    def documents
+      Document.where(investment_id: @loan.id, investor_id: @investor.id)
+    end
+
+    def lenders
+      @loan.lenders.order(:name).uniq.collect { |l| [l.name, l.id] }
+    end
+
+    def placeholder
+      lender? ? 'Please select lender' : 'Lenders'
+    end
+
+    def selected_lender
+      @investor ? @investor.id : nil
+    end
+
+  end
+end
+```
+
+Now we can reduce our controller down to:
+
+```ruby
+class Admin
+  module Loans
+    class DocumentsController < LoansController
+      include Admin::Concerns::DocumentsConcern
+
+      load_resource :loan
+
+      def index
+        @documents_data = Admin::DocumentsFacade.new(params[:loan_id], params[:investor_id])
+        if @documents_data.investor
+          add_breadcrumb "Edit Documents: #{@documents_data.investor.name}"
+        else
+          add_breadcrumb 'Documents'
+        end
+      end
+
+      private
+
+      def document_params
+        params.require(:document).permit(:file, :investor_id, :investment_id)
+      end
+
+    end
+  end
+end
+
+```
+
+And inside our view we will call for our facade:
+
+```slim
+  = render ‘documents/form’, document: @document_data.new_document
+```
+
+[Examples](app/facades)
+
+[Documentation](https://medium.com/kkempin/facade-design-pattern-in-ruby-on-rails-710aa88326f)
+
 ## Workers
-At codica we use sidekiq as a full-featured background processing framework for Ruby. It aims to be simple to integrate with any modern Rails application and much higher performance than other existing solutions.
+At Codica we use sidekiq as a full-featured background processing framework for Ruby. It aims to be simple to integrate with any modern Rails application and much higher performance than other existing solutions.
 
 ```ruby
 class PartnerAlertWorker
