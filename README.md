@@ -158,7 +158,6 @@ module InvestmentDataPerformer
 
   def non_final_profit
     return nil unless investment.non_final_profit
-
     investment.non_final_profit * holding / 100
   end
 
@@ -210,22 +209,18 @@ end
 Presenters give you an object oriented way to approach view helpers.
 
 ```ruby
-class DividendYear
+class QuarterlyDistributionPresenter < BaseDividendYearPresenter
 
-  class QuarterlyDistributionPresenter < BaseDividendYearPresenter
+  QUARTERS = %w[Q1 Q2 Q3 Q4].freeze
 
-    QUARTERS = %w[Q1 Q2 Q3 Q4].freeze
-
-    def dividends_year
-      QUARTERS.map do |quarter|
-        value_decorator(quarter)
-      end
+  def dividends_year
+    QUARTERS.map do |quarter|
+      value_decorator(quarter)
     end
+  end
 
-    def select_dividend_by(dividend_year)
-      CalendarQuarter.from_date(dividend_year).quarter
-    end
-
+  def select_dividend_by(dividend_year)
+    CalendarQuarter.from_date(dividend_year).quarter
   end
 
 end
@@ -320,10 +315,10 @@ Spec folder include the test suites, the application logic tests.
 require 'rails_helper'
 
 RSpec.feature 'Static page', type: :feature do
-  let(:ad) { create :vehicle_listing }
+  let(:listing) { create :listing }
 
   scenario 'unsuccess payment' do
-    visit payment_info_error_path(ad: ad.id)
+    visit payment_info_error_path(listing: listing.id)
     expect(page).to have_content I18n.t('unsuccess_payment_header')
   end
 
