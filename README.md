@@ -43,10 +43,6 @@ Action Controller is the C in MVC. After routing has determined which controller
 class TagsController < ApplicationController
 
   def show
-    add_breadcrumb I18n.t('shared.footer.home'), :root_path
-    add_breadcrumb I18n.t('shared.header.blog'), :blog_path
-    add_breadcrumb I18n.t('posts.index.tags'), :tag_path
-
     @page = Page::Blog::Tag.new(params[:id], params[:page])
   end
 
@@ -65,15 +61,9 @@ Decorators adds an object-oriented layer of presentation logic to your Rails app
 class ListingDecorator < Draper::Decorator
 
   delegate_all
-  include ActionView::Helpers::NumberHelper
 
-  def short_title
-    object.title
-  end
-
-  def picture_url
-    pictures = object.pictures
-    pictures.first.url.medium_with_watermark.url if pictures.present?
+  def creation_date
+    object.created_at.strftime('%d/%m/%Y')
   end
 
 end
@@ -92,10 +82,6 @@ module PartnersHelper
 
   def partner_activation(partner)
     partner.active? ? t('partners.extend_activation') : t('partners.activation')
-  end
-
-  def partner_info?(partner)
-    partner.address.present? || partner.website.present?
   end
 
   def partner_edit_page_title(redirect_url)
@@ -170,16 +156,6 @@ module InvestmentDataPerformer
 
   end
 
-  def total_distribution
-    investment.rental_properties? ? total_quarterly_distribution : total_distribution_dev
-  end
-
-  def profit_less_reserves_for_distribution
-    return unless investment.profit_less_reserves_for_distribution
-
-    investment.profit_less_reserves_for_distribution * holding / 100
-  end
-
   def non_final_profit
     return nil unless investment.non_final_profit
 
@@ -204,30 +180,26 @@ end
 Service Object can be a class or module in Ruby that performs an action. It can help take out logic from other areas of the MVC files.
 
 ```ruby
-class CalculateCurrency < BaseService
+class Subscribe < BaseService
 
-  attr_reader :price, :currency, :rewert
+  attr_reader :email
 
-  def initialize(options = {})
-    @price = options[:price].to_i
-    @currency = options[:currency]
-    @rewert = options[:rewert] || nil
+  def initialize(email)
+    @email = email
   end
 
   def call
-    rate = get_rate(ExchangeRate.base_currency, Settings.currencies[currency])
-    money = rate.present? ? get_price(rate) : price
-    { currency: currency, price: money }
+    list.members.create(body: { email_address: email, status: 'subscribed' })
   end
 
   private
 
-  def get_price(rate)
-    rewert.present? ? (price / rate).floor : (rate * price).floor
+  def list
+    gibbon_request.lists(ENV['MAILCHIMP_LIST_ID'])
   end
 
-  def get_rate(from, to)
-    Money.default_bank.get_rate(from, to)
+  def gibbon_request
+    Gibbon::Request.new(api_key: ENV['MAILCHIMP_API_KEY'])
   end
 
 end
@@ -238,23 +210,22 @@ end
 Presenters give you an object oriented way to approach view helpers.
 
 ```ruby
-class DividendYearDispatcher
+class DividendYear
 
-  def initialize(dividend_year:, default_presenter: YearlyDistributionPresenter)
-    @dividend_year = dividend_year
-    @default_presenter = default_presenter
-  end
+  class QuarterlyDistributionPresenter < BaseDividendYearPresenter
 
-  def results
-    presenter.dividends_year
-  end
+    QUARTERS = %w[Q1 Q2 Q3 Q4].freeze
 
-  def presenter
-    presenter_class(@dividend_year.distribution).new(@dividend_year)
-  end
+    def dividends_year
+      QUARTERS.map do |quarter|
+        value_decorator(quarter)
+      end
+    end
 
-  def presenter_class(distribution)
-    ('DividendYear::' + "#{distribution.gsub(/[ +]/,'_')}_distribution_presenter".camelize).safe_constantize || @default_presenter
+    def select_dividend_by(dividend_year)
+      CalendarQuarter.from_date(dividend_year).quarter
+    end
+
   end
 
 end
@@ -277,73 +248,44 @@ class Admin
     attr_reader :loan, :investor
 
     def initialize(loan_id, investor_id)
-      @loan = Loan.find(loan_id)
-      @investor = Investor.find(investor_id) if investor_id.present?
+      @loan     = Loan.find(loan_id)
+      @investor = Investor.find(investor_id)
     end
 
     def lender?
-      @investor.present?
-    end
-
-    def new_document
-      @loan.documents.build(investor_id: @investor.id)
+      investor.present?
     end
 
     def documents
-      Document.where(investment_id: @loan.id, investor_id: @investor.id)
+      Document.where(investment_id: loan.id, investor_id: investor.id)
     end
 
     def lenders
-      @loan.lenders.order(:name).uniq.collect { |l| [l.name, l.id] }
-    end
-
-    def placeholder
-      lender? ? 'Please select lender' : 'Lenders'
-    end
-
-    def selected_lender
-      @investor ? @investor.id : nil
+      loan.lenders.order(:name).uniq.collect { |l| [l.name, l.id] }
     end
 
   end
+
 end
 ```
 
 Now we can reduce our controller down to:
 
 ```ruby
-class Admin
-  module Loans
-    class DocumentsController < LoansController
-      include Admin::Concerns::DocumentsConcern
+class DocumentsController < LoansController
 
-      load_resource :loan
-
-      def index
-        @documents_data = Admin::DocumentsFacade.new(params[:loan_id], params[:investor_id])
-        if @documents_data.investor
-          add_breadcrumb "Edit Documents: #{@documents_data.investor.name}"
-        else
-          add_breadcrumb 'Documents'
-        end
-      end
-
-      private
-
-      def document_params
-        params.require(:document).permit(:file, :investor_id, :investment_id)
-      end
-
-    end
+  def index
+    add_breadcrumb 'Documents'
+    @documents_data = Admin::DocumentsFacade.new(params[:loan_id], params[:investor_id])
   end
-end
 
+end
 ```
 
 And inside our view we will call for our facade:
 
 ```slim
-  = render ‘documents/form’, document: @document_data.new_document
+= render ‘documents/form’, document: @document_data.new_document
 ```
 
 [Examples](app/facades)
@@ -357,7 +299,6 @@ At Codica we use sidekiq as a full-featured background processing framework for 
 class PartnerAlertWorker
 
   include Sidekiq::Worker
-  sidekiq_options queue: ENV['CARRIERWAVE_BACKGROUNDER_QUEUE'].to_sym
 
   def perform(id)
     @partner = Partner.find(id)
