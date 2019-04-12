@@ -335,7 +335,7 @@ end
 [Documentation](https://relishapp.com/rspec/)
 
 ## License
-rails-app-best-practice is Copyright © 2015-2018 Codica. It is released under the [MIT License](https://opensource.org/licenses/MIT).
+rails-app-best-practice is Copyright © 2015-2019 Codica. It is released under the [MIT License](https://opensource.org/licenses/MIT).
 
 ## About Codica
 
