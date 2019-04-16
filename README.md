@@ -141,6 +141,66 @@ end
 
 [Documentation](https://guides.rubyonrails.org/active_model_basics.html)
 
+## Form Objects
+
+Use [form object](https://medium.com/selleo/essential-rubyonrails-patterns-form-objects-b199aada6ec9) pattern to make your models more lightweight.
+Single responsibility principle helps us make the best design decisions about what the class should be responsible for. Your model is a database table, it represents a single entry in the code, so there is no reason to worry and user action.
+
+Form Objects are responsible for the presentation of the form in your application. Each form field is an attribute in a class and can be checked through validation, which will give us clean data and they will go further along the chain. This can be your model, defining a table in the database or, for example, a search form.
+
+Here are an examples of [fat](app/models/investor_fat.rb) and [refactored](app/models/investor.rb) models.
+
+Usage Form Object in controller:
+
+```ruby
+
+class Admin::InvestorsController < CommonAdminController
+
+  include Sorting
+
+  load_resource :investor, except: %i[index new create]
+
+  def index
+    @investors = Investor.real.includes(:investor_group, :address)
+  end
+
+  def new
+    @investor_form = InvestorForm.new
+  end
+
+  def edit
+    @investor_form = InvestorForm.new(@investor)
+  end
+
+  def create
+    params[:investor][:password] = generate_devise_password
+    @investor_form = InvestorForm.new
+
+    if @investor_form.submit(params)
+      flash[:success] = 'Investor was successfully created.'
+      redirect_to admin_investor_path(@investor_form.id)
+    else
+      render :new
+    end
+  end
+
+  def update
+    @investor_form = InvestorForm.new(@investor)
+
+    if @investor_form.submit(params)
+      flash[:success] = 'Investor was successfully updated.'
+      redirect_to admin_investor_path(@investor)
+    else
+      render :edit
+    end
+  end
+
+```
+
+[Examples](app/forms/investor_form.rb)
+
+[Documentation](https://thoughtbot.com/blog/activemodel-form-objects)
+
 ## Performers
 
 The performer pattern creates seperation for the methods in your model that are view related. The performers are modules and are included into the corresponding model.
@@ -173,7 +233,6 @@ end
 
 [Documentation](https://github.com/jwipeout/performer-pattern)
 
-
 ## Services
 
 Service Object can be a class or module in Ruby that performs an action. It can help take out logic from other areas of the MVC files.
@@ -203,9 +262,11 @@ class Subscribe < BaseService
 
 end
 ```
+
 [Examples](app/services)
 
 ## Presenters
+
 Presenters give you an object oriented way to approach view helpers.
 
 ```ruby
@@ -288,6 +349,7 @@ And inside our view we will call for our facade:
 [Documentation](https://medium.com/kkempin/facade-design-pattern-in-ruby-on-rails-710aa88326f)
 
 ## Workers
+
 At Codica we use sidekiq as a full-featured background processing framework for Ruby. It aims to be simple to integrate with any modern Rails application and much higher performance than other existing solutions.
 
 ```ruby
