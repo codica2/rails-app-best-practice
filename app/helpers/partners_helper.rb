@@ -4,7 +4,6 @@ module PartnersHelper
     partner.active? ? t('partners.extend_activation') : t('partners.activation')
   end
 
-
   def partner_info?(partner)
     partner.address.present? || partner.website.present?
   end

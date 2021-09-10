@@ -12,16 +12,18 @@ Below you can find an example of a project`s structure, and its main components
 ```
 project_name
   ├── app
-  |   ├── assets  => images, fonts, stylesheets, js
+  |   ├── assets => images, fonts, stylesheets, js
   |   ├── controllers
   |   ├── decorators
   |   ├── helpers
   |   ├── mailers
   |   ├── models
   |   ├── performers
+  |   ├── policies
+  |   ├── presenters
+  |   ├── serializers
   |   ├── services
   |   ├── uploaders
-  |   ├── presenters
   |   ├── views
   |   └── workers => workers for running processes in the background
   ├── bin     =>  contains script that starts, update, deploy or run your application.
@@ -37,13 +39,77 @@ project_name
 
 ## Controllers
 
-Action Controller is the C in MVC. After routing has determined which controller to use for a request, your controller is responsible for making sense of the request and producing the appropriate output
+Action Controller is the C in MVC. After routing has determined which controller to use for a request, your controller is responsible for making sense of the request and producing the appropriate output.
+
+There are a lot of opinions on what a controller should do. A common ground of the responsibilities a controller should have include the following:
+
+**Authentication and authorization** — checking whether the entity (oftentimes, a user) behind the request is who it says it is and whether it is allowed to access the resource or perform the action.
+
+**Data fetching** — it should call the logic for finding the right data based on the parameters that came with the request. In the perfect world, it should be a call to one method that does all the work. The controller should not do the heavy work, it should delegate it further.
+
+**Template rendering** — finally, it should return the right response by rendering the result with the proper format (HTML, JSON, etc.). Or, it should redirect to some other path or URL.
+
 
 ```ruby
-class TagsController < ApplicationController
+class BooksController < ApplicationController
 
   def show
-    @page = Page::Blog::Tag.new(params[:id], params[:page])
+    @book = Book.find(params[:id])
+  end
+
+  def create
+    @book = Book.new(book_params)
+
+    if @book.save
+      redirect_to action: 'list'
+    else
+      @subjects = Subject.all
+      render action: 'new'
+    end
+  end
+
+  private
+
+  def book_params
+    params.require(:books).permit(:title, :price, :subject_id, :description)
+  end
+
+end
+```
+
+```ruby
+class ListingsController < ApiController
+
+  def index
+    listings = Current.user.listings
+
+    render json: ListingSerializer.new(listings).serializable_hash
+  end
+
+  def create
+    authorize Listing
+
+    command = Listings::Create.call(Current.user, params[:listing])
+
+    if command.success?
+      render json: ListingSerializer.new(command.result).serializable_hash
+    else
+      render json: command.errors
+    end
+  end
+
+  def destroy
+    listing = Current.user.listings.find(params[:id])
+
+    authorize listing
+
+    command = Listings::Delete.call(listing)
+
+    if command.success?
+      head :ok
+    else
+      render json: command.errors
+    end
   end
 
 end
@@ -141,6 +207,8 @@ end
 
 [Documentation](https://guides.rubyonrails.org/active_model_basics.html)
 
+[Ruby on Rails Model Patterns and Anti-patterns](https://blog.appsignal.com/2020/11/18/rails-model-patterns-and-anti-patterns.html)
+
 ## Form Objects
 
 Use [form object](https://medium.com/selleo/essential-rubyonrails-patterns-form-objects-b199aada6ec9) pattern to make your models more lightweight.
@@ -233,6 +301,34 @@ end
 
 [Documentation](https://github.com/jwipeout/performer-pattern)
 
+## Serializers
+
+In Ruby serialization does nothing else than just converting the given data structure into its valid JSON.
+
+```ruby
+class AttachmentSerializer
+
+  include JSONAPI::Serializer
+
+  attributes :id, :name, :description
+
+  attribute :url, &:attachment_url
+
+  attribute :type do |obj|
+    obj.attachment.mime_type
+  end
+
+  attribute :name do |obj|
+    obj.attachment['filename']
+  end
+
+end
+```
+
+[Examples](app/serializers)
+
+[Documentation](https://github.com/jsonapi-serializer/jsonapi-serializer)
+
 ## Services
 
 Service Object can be a class or module in Ruby that performs an action. It can help take out logic from other areas of the MVC files.
@@ -265,6 +361,8 @@ end
 
 [Examples](app/services)
 
+[Documentation](https://github.com/nebulab/simple_command)
+
 ## Presenters
 
 Presenters give you an object oriented way to approach view helpers.
@@ -290,6 +388,33 @@ end
 [Examples](app/presenters)
 
 [Documentation](http://nithinbekal.com/posts/rails-presenters/)
+
+## Policies
+
+Pundit provides a set of helpers which guide in leveraging regular Ruby classes and object oriented design patterns to build a simple, robust and scalable authorization system.
+
+```ruby
+class ProductPolicy < ApplicationPolicy
+
+  def create?
+    user_active?
+  end
+
+  def show?
+    user_active? && record.active?
+  end
+
+  def destroy?
+    show?
+  end
+
+end
+
+```
+
+[Examples](app/policies)
+
+[Documentation](https://github.com/varvet/pundit)
 
 ## Facades
 
